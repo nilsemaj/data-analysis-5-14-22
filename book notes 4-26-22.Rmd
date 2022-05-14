@@ -1424,6 +1424,8 @@ data frame-
 
 https://www.uvm.edu/~statdhtx/StatPages/Missing_Data/Missing.html
 
+https://www.uvm.edu/~statdhtx/StatPages/Missing_Data/Missing-Part-Two.html
+
 https://www.uvm.edu/~statdhtx/StatPages/Mixed-Models-Repeated/Mixed-Models-for-Repeated-Measures1.html
 
 
@@ -1452,9 +1454,139 @@ df <- data %>% separate(yes, c('ID',	'Group',	'Optimism',	'GrpNumb',	'RelInf',	'
 
 ```
 
+### The Data
+
+I have created data to have a number of characteristics. There are two groups - a Control group and a Treatment group, measured at 4 times. These times are labeled as 1 (pretest), 2 (one month posttest), 3 (3 months follow-up), and 4 (6 months follow-up) -- or, in some cases, 0, 1, 3, 6. I created the treatment group to show a sharp drop at post-test and then sustain that drop (with slight regression) at 3 and 6 months. The Control group declines slowly over the 4 intervals but does not reach the low level of the Treatment group. There are noticeable individual differences in the Control group, and some subjects show a steeper slope than others. This last fact will become important in creating a covariance matrix that does not show compound symmetry.) In the Treatment group there are individual differences in level but the slopes are not all that much different from one another. You might think of this as a study of depression, where the dependent variable is a depression score (e.g. Beck Depression Inventory) and the treatment is drug versus no drug. If the drug worked about as well for all subjects the slopes would be comparable and negative across time. For the control group we would expect some subjects to get better on their own and some to stay depressed, which would lead to differences in slope for that group. These facts are important because when we get to the random coefficient mixed model the individual differences will show up as variances in intercept, and any slope differences will show up as a significant variance in the slopes. For the standard ANOVA, and for the SPSS mixed models, the differences in level show up as a Subject effect and we assume that the slopes are comparable across subjects.
+
+```{r}
+# Notice that the data are read in the long form.
+
+library(readxl)
+WicksellLongComplete <- read_excel("WicksellLongComplete.xlsx")
+colnames(WicksellLongComplete) <- 'yes'
+
+data2 <- WicksellLongComplete %>% separate(yes, c('Subject',	'Time',	'Group',	'dv'))
+
+ head(data2)
+
+data2$Group <- factor(data2$Group)  #I don't like to use 'attach'.
+data2$Subj <- factor(data2$Subject)
+data2$time.cont <- data2$Time
+data2$Time <- factor(data2$Time)
+data2$dv <- as.numeric(data2$dv)
+
+### Using aov
+Wicksellaov <- aov(dv~Group*Time + Error(Subj), data = data2)
+print(summary(Wicksellaov))
+
+```
+
+For this analysis we see that each of the effects in the overall analysis is significant. We don't care very much about the Group effect because we expected both groups to start off equal at pre-test. Similarly, we don't care much about the Time effect, because the interaction shows us that there is a different time effect in each group. By-and-large, when you have a significant interaction the main effects are usually unimportant unless you have a very specific reason for attending to them. What is important is the interaction, and it is significant at p = .0001. Clearly the drug treatment is having a differential effect on the two groups, which is what we wanted to see. The fact that the Control group seems to be dropping in the number of symptoms over time is to be expected and not exciting, although we could look at these simple effects if we wanted to. We would just run two analyses, one on each group. I would not suggest pooling the variances to calculate F, though that would be possible. I should mention that if you ran this analysis using R and its mixed model library (lme4), you would obtain the same results, but that is because this is a balanced design with no missing data. You can see that analysis if you go to Mixed-Models-Overview.html.
+
+```{r}
+library(lme4)
+library(nlme)
+Wickselllm <- lmer(dv ~ Group*Time + (1|Subj), data = data2 )
+anova(Wickselllm)
+```
+
+###Mixed Model
+
+
+- The use of mixed models represents a substantial difference from the traditional analysis of variance. For balanced designs (which roughly translates to equal cell sizes) the results will come out to be the same, assuming that we set the analysis up appropriately. But the actual statistical approach is quite different and ANOVA and mixed models will lead to different results whenever the data are not balanced or whenever we try to use different, and often more logical, covariance structures.
+
+But why amI talking about mixed models when I was supposed to be talking about repeated measures?
+
+Mixed models deal with the case where some of your independent variables are random variables and some are fixed. In a repeated measures designs, we have multiple measures from the same subject. That means that we will need a term for Subjects, and in almost all practical examples, `subjects are a random factor while Groups and Trials are fixed.` Hence we have a mixed model.
+
+By definition, mixed models involve both fixed and random independent variables. You might expect that we would have developed nice clear distinctions between fixed and random effects, but we haven't. In general a fixed variable includes all of the levels of that variable that you care about. `Instead of selecting levels randomly from some possible population of levels, we choose them very deliberately and intend to interpret our results within the levels we have used`. An example might be 3 different antidepressant drugs or 5 different levels of one drug. Gender is always a fixed variable because we if we are comparing genders we only have two genders to work with.
+
+
+`A random variable, on the other hand, is thought to be chosen from a population of levels`. If, for example, we want to see how people identify letters, we could randomly choose 6 letters from the alphabet. If we repeated this study we would probably come up with 6 different letters. And we want to interpret our results with respect to the whole population of (26) possible letters. Similarly we might randomly choose classrooms or schools from all possible schools in California. Again, we want our results to generalize to at least California schools in general, not just the ones we used. When we are dealing with random variables, our primary interest is not in the differences between school-A and school-B, for example, but in the variance of school performance.
+
+### Covariance Structures
+
+First a bit of theory. You should recall that for a standard repeated measures analysis of variance we assume that the covariance matrix meets our sphericity assumption and we go from there. In other words the calculations are carried out with the covariance matrix forced to sphericity. If that is not a valid assumption we are in trouble. Of course there are corrections due to Greenhouse and Geisser and Hyunh and Feldt, but they are not optimal solutions.
+
+But what does compound symmetry, or sphericity, really represent? (The assumption is really about sphericity, but when speaking of mixed models most writers refer to compound symmetry, which is actually a bit more restrictive.) `Most people know that compound symmetry means that the pattern of covariances or correlations is constant across trials`. In other words, the `correlation between trial 1 and trial 2 is equal to the correlation between trial 1 and trial 4 or trial 3 and trial 4`, etc. But a more direct way to think about **compound symmetry** is to say that it requires that `all subjects in each group change in the same way over trials`. In other words the `slopes of the lines regressing the dependent variable on time are the same for all subjects`. Put that way it is easy to see that compound symmetry can really be an unrealistic assumption. If some of your subjects improve but others don't, you do not have compound symmetry and you make an error if you use a solution that assumes that you do. Fortunately SPSS Mixed Models and R's nlme, allow you to specify some other pattern for those covariances.
+
+We can also get around the sphericity assumption using the the SPSS multivariate model, often called Manova, procedure, but that too has its problems. Both standard univariate GLM and MANOVA GLM will insist on complete data. If a subject is missing even one piece of data, that subject is discarded. That is a problem because with a few missing observations we can lose a great deal of data and degrees of freedom.
+
+The `Mixed-Models` procedure is different. `Instead of using a least squares solution, which requires complete data, it uses a maximum likelihood solution, which does not make that assumption`. (We will often use a Restricted Maximum Likelihood (REML) solution.) When we have balanced data both least squares and REML will produce the same solution if we specify a covariance matrix with compound symmetry. But even with balanced data if we specify some other covariance matrix the solutions will differ. At first I am going to force sphericity by specifying that I want to assume that the covariance structure has compound symmetry. I will later relax that structure.
+
+```{r}
+library(lme4)
+Wickselllm <- lmer(dv ~ Group*time.cont + (1|Subj), data = data2)
+anova(Wickselllm)
+summary(Wickselllm)
+
+anova(Wickselllm, type = 3) 
+```
+
+Because we have a completely balanced design (equal sample sizes and no missing data) and because the time intervals are constant, the results of this analysis will come out exactly the same as those for the analysis of variance so long as I specify type = cs. (Notice that solution using R is also a match for this and earlier analyses.) But notice that there are some important differences in this printout from what we have come to expect. We do not have the sums of squares and the mean squares, although those can easily be calculated. But the F values are the same as earlier. Because this is SPSS, and not R, we have p values for each of the tests. You may think "well, of course we should!" But actually there is quite a bit of argument over that issue. With an unbalanced design and random variables (here only subjects), there is a large question over what the degrees of freedom for the denominator of F should be. The authors of the lme4 package in R simply report the F without p and leave it at that, although with the nlme package they did provide probabilities. All is not lost because there is another way to test for significance using (Wald's test which uses chi-square), but even there those who talk about that test argue that it, too, is a poor test under many conditions. We will see the use of that test later.
+
+ In the ideal world the lines would start out at the same point on the Y axis (i.e. have a common intercept) and move in parallel (i.e. have a common slope). That isn't quite what happens here, but whether those are chance variations or systematic ones is something that we will look at later. We can see in the Control group that a few subjects decline linearly over time and a few other subjects, especially those with lower scores decline at first and then increase during follow-up.
+
+```{r}
+data2$Group <- as.factor(data2$Group)
+
+par(mfrow = c(2,1))
+Grp1 <- data2[ which (data2$Group == "1"), ]
+
+plot(dv ~ time.cont, type = "b", data = Grp1, col = c(1:2), xlab = "Time", main = "Group 1", ylim = c(0,500))
+
+Grp2 <- data2[ which (data2$Group == "2"), ]
+
+plot(dv ~ time.cont, type = "b", data = Grp2, col = c(1:2), xlab = "Time", main = "Group 2", ylim = c(0,500))
+```
+
+Remember that there are two sources of random effects in this design. There is our normal $σ^2e$, which reflects random noise. In addition we are treating our subjects as a random sample, and random variance among subjects is another source of variance that we need to contend with.
+
+we used expected mean squares to justsify our choice of denominator for F ratios. That works with balanced designs, but starts to fall apart with unbalanced designs. Maximum likelihood works with both kinds of designs, which is one of its great strengths.
+
+### Missing Data
+
+I have just spent considerable time discussing a balanced design where all of the data are available. Now I want to delete some of the data and redo the analysis. This is one of the areas where mixed designs have an important advantage. I am going to delete scores pretty much at random, except that I want to show a pattern of different observations over time. It is easiest to see what I have done if we look at data in the wide form, so the earlier table is presented below with '.' representing missing observations. (In my SPSS analyes I use "999" as the missing data value, and specify that when I load the data. R requires me to use "NA" as the missing value.) It is important to note that data are missing completely at random, not on the basis of other observations. The data file that I will read into SPSS will have the long format, and missing observations are simply indicated as 999, leaving us with 96 - 9 = 87 complete rows.
+
+If we treat this as a standard repeated measures analysis of variance, using the standard SPSS anova procedure, we have a problem. `Of the 24 cases, only 17 of them have complete data. That means that our analysis will be based on only those 17 cases.` Aside from a `serious loss of power`, there are other problems with this state of affairs. Suppose that I suspected that people who are less depressed are less likely to return for a follow-up session and thus have missing data. To build that into the example I could deliberately have deleted data from those who scored low on depression to begin with, though I kept their pretest scores. (I did not actually do this here.) Further suppose that people low in depression respond to treatment (or non-treatment) in different ways from those who are more depressed. By deleting whole cases I will have deleted low depression subjects and that will result in biased estimates of what we would have found if those original data points had not been missing. This is certainly not a desirable result.
+
+
+To expand slightly on the previous paragraph, if we using Anova, we have to assume that data are missing completely at random, normally abbreviated MCAR. (See Howell, 2008.) If the data are not missing completely at random, then the results would be biased. But if I can find a way to keep as much data as possible, and if people with low pretest scores are missing at one or more measurement times, the pretest score will essentially serve as a covariate to predict missingness. This means that I only have to assume that data are missing at random (MAR) rather than MCAR. (I recognize that MAR is a very odd and confusing way to label data that are missing because of low initial scores, but that's the way we generally label such a design.) That is a gain worth having. MCAR is quite rare in experimental research, but MAR is much more common. Using a mixed model approach requires only that data are MAR and allows me to retain considerable degrees of freedom. (That argument has been challenged by Overall & Tonidandel (2007), but in this particular example the data actually are essentially MCAR. I will come back to this issue later.)
+
+```{r}
+library(readxl)
+WicksellLongComplete2 <- read_excel("WicksellLongComplete.xlsx", sheet=2)
+colnames(WicksellLongComplete2) <- 'yes'
+
+datam <- WicksellLongComplete2 %>% separate(yes, c('Subject',	'Time',	'Group',	'dv'))
+
+ head(datam)
+
+datam$Group <- as.factor(datam$Group) 
+datam$Subj <- factor(datam$Subject)
+datam$time.cont <- datam$Time
+datam$Time <- factor(datam$Time)
+datam$dv <- as.numeric(datam$dv)
 
 
 
+library(lme4)
+Wick3 <- lmer(dv ~ Time*Group + (1|Subj), data = datam, contrasts = contr.sum)  
+anova(Wick3)
+```
+
+
+Notice that the output is split between Between-subjects terms and Within-subjects terms. We still have a group effect and a Time effect, but the F for our interaction has been reduced by about two thirds, and that is what we care most about. (In a previous version I made it drop to nonsignificant, but I relented here.) Also notice the big drop in degrees of freedom due to the fact that we now only have 17 subjects.
+
+Notice that the interaction agrees with SPSS, but the other two Fs don't, in part because R is using Type I SS. But it is important to at least briefly mention the concept of "Random Intercept." In the code above, the part that says (1|Subj) specifies that each subject will be allowed his or her own intercept (that is what the "1" means). This helps to take care of those subjects who start off with low levels of depression, and those that start off with higher levels of depression. If we also wanted to allow each subject to have his or her own slope, we would use `(1 +Time.cont|Subj)`, which would in part take recognition that subjects won't all follow the same pattern of responses, and correlations will vary across the matrix. (Notice that I use the continuous (non-factor) version of Time.)
+
+BUT Here is where things start to get interesting with maximum likelihood. There is a very strong argument to be made that we do not know the degrees of freedom for the denominator of the F and thus cannot calculate p exactly. This is not because statisticians are too dumb to work it out, but because it really is unknown. There are approximations and other ways of testing, which is why I mentioned the Wald test, but software such as R using lmer() won't even print out a column named p for fixed effects. [But try the lmerTest() library.] And that isn't all. This is where most treatments of mixed models veer off in a different direction, testing competing models instead of presenting a nice neat summary table.
+
+## Mixed Models Treatment of Repeated Measures and Missing Data Part II
+
+ Remember that our main problem in any repeated measures analysis is to handle the fact that when we have several observations from the same subject, our error terms are often going to be correlated. This is true whether the covariances fit the compound symmetry structure or we treat them as unstructured or autoregressive.
+
+Except for the specific values, these look like the pattern we have seen before. I generated them by simply setting up data for each subject that had a different slope. For Subject 1 the scores had a very steep slope, whereas for Subject 4 the line was almost flat. In other words there was variance to the slopes. Had all of the slopes been equal (the lines parallel) the off-diagonal correlations would have been equal except for error, and the variance of the slopes would have been 0. But when the slopes were unequal their variance was greater than 0 and the times would be differentially correlated.
 
 
 
