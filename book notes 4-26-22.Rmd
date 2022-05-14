@@ -16,6 +16,8 @@ knitr::opts_chunk$set(echo = F)
 
 # Data Analysis in R
 
+https://bookdown.org/steve_midway/DAR/
+
 https://bookdown.org/steve_midway/DAR/from-science-to-data.html
 
 ## Chapter 1 From Science to Data
@@ -1078,14 +1080,322 @@ Random effect estimates are a function of the group level information as well as
 
 ### PLD Example
 
-`Planktonic larval duration` (PLD) example from O’Connor et al (2007). We know that temperature is important for developing organisms. In marine species temperature is an important link to growth and thus time spent as a planktonic larvae can have effects on mortality and other important population regulating processes. Historically these relationships have looked at the between species comparisons but not the within species comparisons. It may be very important to consider both within and between species aspects of this data in order to understand where the variability lies and how best to model the data.
+`Planktonic larval duration` (PLD) example from O’Connor et al (2007). We know that *temperature is important for developing organisms*. In marine species temperature is an important link to growth and thus time spent as a planktonic larvae can have effects on mortality and other important population regulating processes. Historically these relationships have looked at the between species comparisons but not the within species comparisons. It may be very important to consider both within and between species aspects of this data in order to understand where the variability lies and how best to model the data.
+
+When first seeing this data and thinking about modeling it we might entertain two options. The first option would be to aggregate or to distill each species into one observation. In this case our total sample size goes from 214 down to 72, which is the number of unique species in the data. This approach also ignores within-species variation, which is dangerous because it may be a large part of the overall variance and thus result in a loss of information and power. When aggregating, each sample becomes a subsample. So in a way we’re not actually modeling any of the observed data, but rather we are modeling means or averages of the data.
+
+A second approach to modeling this data may be to disaggregate it. By disaggregating it all observations would be used but no species factor would be included (similar to the first PLD figure). Each observation is considered an independent replicate sample, which we know is not likely to be true because measurements within species are more likely to be similar than compared to other species. We also know that species with larger sample sizes would contribute disproportionately to the coefficients even though there groups are not being explicitly included. For example, if we had a species for which there were a large number of observations and a species in which there were only one observation, under a disaggregated approach the species with a large number of observations would have a disproportionate influence on the outcome of a disaggregated model.
+
+We can see from the above table that the aggregated approach has less statistical power, meaning that it has wider confidence intervals and a non-significant effect of slope. The disaggregated model has larger coefficients, tighter confidence intervals, and statistical significance. Where did this significance come from?
 
 
+At this point you may be questioning both the aggregated and disaggregated appraoches. Both have their flaws. In fact, this data is an excellent candidate for a random effect. We expect the overall temperature and PLD relationship to be similar among species, but not the same. We also know there are more than 72 species in the ocean, and as such species are not necessarily great fixed effects.
+
+### Types of models with random effects
+
+The figure below shows common linear regression models ranging from a conventional fixed effects model to a fully random effects model.
+
+![linear regression models](07_models.png)
+
+### Mixed effects models
+
+Mixed effects models have exactly that—mixed effects including both fixed and random effects. `The first mixed effect model we might consider is one that has a random effect for the intercept and fixed slope.` This means each group in the model gets its own intercept estimate, but has a common slope.
+
+### Random intercept, fixed slope model
+
+```{r eval=FALSE}
+mol <- filter(pld, phylum == "Mollusca")
+
+ggplot(mol, aes(y = l.pld, x = l.temp)) +
+  geom_point() +
+  xlab("Log(temperature)") +
+  ylab("Log(PLD)") +
+  theme_classic(base_size = 15) +
+  stat_smooth(method = "lm", formula = 'y ~ x', se=F,fullrange = T) +
+  facet_wrap(~species)
+
+library(lme4)
+
+# Mixed model with random effect for intercept
+mix.int <- lmer(l.pld ~ l.temp + (1 | species), data = mol)
+summary(mix.int)
+
+coef(mix.int)$species
+```
+
+It’s clear that each species has it’s own intercept, yet all the slope coefficients (`l.temp`) are the same (fixed).
+
+### Interclass Correlation Coefficient (ICC)
+
+A mixed model with a random intercept is also a point where we can pause and run a diagnostic called the Interclass Correlation Coefficient (ICC), which is a sort of indicator for how much group-specific information is available for a random effect to help with. An ICC functions similarly to an ANOVA in a sense that it looks at the variability within groups compared to the variability between groups. 
+
+In fact, if I were to give you a value of 0.5 you would have a very hard time guessing as to which group that observation would likely belong to. Conversely the ICC of 0.91 is a very high ICC and suggests that there is a lot of group specific information within the data. Again, if I gave you a specific data value such as 1.0 you would be quite confident in understanding which of a small number of groups that value would likely to be contained—and which groups it would not be in. It is worth noting that ICCs range from 0 to 1, much like a correlation coefficient and that ICCs closer to 0 are considered to have low group level information while ICCs approaching one are considered to have higher amounts of group level information. The cutoffs for weak, moderate, and strong ICCs are subjective and subject to debate
+
+The formula for ICC is also fairly straightforward in which we are just looking at the proportion of the random intercept variance compared to the total variance within the model.
+
+$ICC = \frac{\sigma_{\alpha}^2}{\sigma^2+\sigma_{\alpha}^2}$
+
+we get an ICC of 0.96, which is a very high ICC and strongly suggestive that there is within-group variability that would benefit from a random effect.
+
+### Fixed intercept, random slope model
+
+Maybe we want to entertain a random slope, because we hypothesize that the effect of our predictor differs among groups. And maybe we want to fix the intercept because we know that all groups start in a similar place. For example, consider an organism growth study were a random effect for slope is needed to capture the different growth rates, but a fixed intercept may be useful because all organisms start at the same size.
+
+```{r eval=FALSE}
+# Mixed model with random effect for slope
+mix.sl <- lmer(l.pld ~ l.temp + ( 0 + l.temp | species), data = mol)
+
+summary(mix.sl)
+
+coef(mix.sl)$species
+
+```
+
+If you are looking closely at the estimates between the models, you might notice something. The global mean estimate for the random intercept, fixed slope model was `7.17`, while the fixed effect estimate for the intercept in the random slope, fixed intercept model is `7.33`. This is not a huge difference, but it is noticable and brings up the question why would these estimates differ? One is a pure fixed effect and the other is the mean of the random effects, but we might expect them to be similar? What is going on is that both fixed and random effect estimates are subject to change depending on what else is in the model. This is functionally no different than predictor coefficients changing as you add predictors to a multiple linear regression. But with fixed and random effects, these changes can be a result of the constraints that are imposed or removed on parameters. These coefficient differences are rarely anything to be aware of or concern with, but it is worth knowing that coefficient estimates from one mixed model are not insured when changing the model, even if the data stay the same.
+
+### Random effects model
+
+Perhaps you are now thinking that either the fixed intercept or the fixed slope are too constraining. This is often the case, and the good news is that a `random effects model—a model with both a random intercept and random slope—is often a good choice.` A random effects model allows the flexibility for each group to have it’s own unique regression relationship, only informed by the grand means if lacking information on their own. And as discussed earler, the constraints experienced by the random effects when another effect is fixed, are all but gone.
+
+```{r eval=FALSE}
+# Random effects model (both intercept and slope are random)
+re.mod <- lmer(l.pld ~ l.temp + (l.temp | species), data = mol)
+
+summary(re.mod)
+
+coef(re.mod)$species
+
+```
+
+We can see that both random intercepts and random slopes vary a lot—much more than in the mixed effects models. This does not mean the random effects model is better, as some of this variability could be coming from noise, but overall, we can safely assume that both model parameters are free to explore a wider parameter space for each group and likely estimating group-specific relationships that are as accurate as we can get.
+
+So how do all these estimates compare with each other? Below, we will compare the extremes. A disaggregated model (one common model for every species), a species-specific model (each species is fit using only data from that species), and our random effects model.
+
+It is clear that the disaggregated model is not a good model. We know species need to be accounted for, and yet the disaggregated model fits several species very poorly. The species-specific model fits and the random effects model fits are often closely estimated, suggesting that one might not be significantly superior over the other. And while that may be true to some extent, we now know that random effects model is providing several behind the scenes benefits. Poorly estimated groups are informed by the grand mean parameteres, and we are running the whole analysis in one model. Perhaps most importantly, we know that species in this case, is a classic random effect, and just having that random effect in our model increases the realism between our model and the system we are seeking to describe.
 
 
+### Should I Consider Random Effects?
+
+When considering a random effect, it can be informative to ask the following quesitons.
+
+1. Can the factor(s) be viewed as a random sample from a probability distribution?
+
+2. Does the intended scope of inference extend beyond the levels of a factor included in the current analysis to the entire population of a factor?
+
+3. Are the coefficients of a given factor going to be modeled?
+
+4. Is there a lack of statistical independence due to multiple observations from the same level within a factor over space and/or time?
+
+Now let’s answer those questions with the PLD data.
 
 
+Answers with the PLD **data 1. Can the factor(s) be viewed as a random sample from a probability distribution?** Both the individual species used for the analysis and the relationship between temperature and PLD could be viewed as a random sample from a probability distribution. Species can be viewed as a random sample of all species, and the relationship (slope) between temperature and PLD for each species can be viewed as being drawn from a distribution of slopes.
 
+Yes
+
+2. **Does the intended scope of inference extend beyond the levels of a factor included in the current analysis to the entire population of a factor?** O’Connor et al. (2007) were interested in examining the generality of the temperature-PLD relationship, and therefore the scope of inference was not restricted to the 72 species analyzed, but rather to all marine animals with a planktonic larval stage.
+
+Yes
+
+3. **Are the coefficients of a given factor going to be modeled?** If there is variation among species in average PLD, then ask “why might species differ in their average PLD?” It is hypothesized that this might be due to evolutionary processes driven by regional temperature variability. To test this hypothesis, you could add species-level predictor variables to the model.
+
+Could be
+
+4. **Is there a lack of statistical independence due to multiple observations from the same level within a factor over space and/or time?** For the O’Connor et al. (2007) analysis, multiple observations existed for each of the 72 species.
+
+Yes
+
+## Chapter 10 Model Selection
+
+Ultimately we want the best model for our understanding or application. We live in an era where there is a lot of data, which means there can be a lot of predictors and we need ways to identify the most important predictors and exclude those that are not contributing knowledge or information. Historically, model selection took place in an ad hoc way; however, model selection now refers to a regularization method that involves an actual analysis and comparison of different models.
+
+All of this hearkens back to Chamberlain’s idea of multiple working hypotheses. `By developing multiple working hypotheses it is harder to fall in love with a single hypothesis that we develop. Similarly by developing multiple models it becomes harder to fall in love with one model. And from those multiple models, model selection has become the routine that allows us to identify that best model.`
+
+### Implicit and explicit model selection
+
+implicit and explicit model selection
+
+`Explicit model selection is the model selection that is most commonly referred to when modelers or statisticians are talking about model selection`; for example, AIC (Akaike Information Criterion) and cross validation methods with which you may be familiar. Implicit model selection, however, takes place often before the explicit model selection yet can be just as important. Implicit model selection refers to the things you do and decide on when it comes to designing a model. For example `implicit model selection includes what inputs and predictors make sense to even consider including` (based on a mechanism or hypothesis). Or, perhaps you’ve evaluated some predictors and looked at their effects, which may not be a great way to determine whether to include a predictor but still may produce some information of use
+
+The remainder of this chapter will discuss explicit model selection; however, it remains critical to understand the power you have with implicit model selection and not leave all the model selection to a mechanized routine.
+
+### Model Balance
+
+Recall that when we develop a model we seek to balance the idea of generalizability and specificity. We want a model to be general enough that it can be widely used but not so general that it has no power to help with understanding our prediction. 
+
+we want a model that is specific enough to be helpful but not so specific that it’s fine-tuned to one particular data set (over parametereized) or not useful in other applications. 
+
+- One thing to consider in model selection is whether you seek prediction or understanding
+
+- it can be important to ask yourself whether you are seeking to identify a model to more fully understand a complex process or perhaps just to make a simple prediction.
+
+Model or system understanding may not predict well but it can help explain the drivers of a system. On the other hand, model prediction may not explain well but still have value in performance and application. But again—prediction and understanding are not exclusive.
+
+### Information criterion: The ICs
+
+The information criterion, or ICs, are those `model selection routines that seek to balance the reduction in sum of squared errors with the cost of adding additional parameters`. In other words IC routines penalize models with more parameters unless those parameters help with the overall fitting. A basic IC example would be an adjusted  $R^2$ ; however, AIC is probably the most common information criterion and several others exist. It remains important to remember that the same data need to be used for each model when comparing. Obviously, the predictors can change, but the same exact observations need to go into each model.
+
+AIC, or `Akaike Information Criterion`, is the most popular of the ICs. You can see from the formula below that AIC consists of approximately two terms. The first term,  $2ln(\hat{L})$  refers to the likelihood of the data. The second term,  2k , is the penalty term that increases with the additional number of inputs or model parameters. We can think of the AIC formula as AIC equals the likelihood of the model plus the number of estimated parameters. It’s important to remember that lower AIC values are better, but AIC is unitless so it is not worth trying to interpret what the AIC values mean.
+
+$AIC = 2ln(\hat{L}) + 2k$
+
+Before leaving AIC completely is worth knowing that there is an AICc, which is used for lower sample sizes, typically when  `n−K>30`. However AICc converges with AIC for larger sample sizes, and so in theory AICc can be used all the time with little risk. Another option is BIC, or the Bayesian information criterion, which is not necessarily for Bayesian estimation. BIC imposes a greater penalty for additional terms in the model. DIC is the deviance information criterion and is an AIC version that is used with hierarchical models. In general, different ICs will tend to give you similar answers, although they are not perfectly correlated. Also ICs tend to be more for model or system understanding and less for prediction, although that is certainly not a universal statement.
+
+### Cross validation
+
+In many ways, cross validation can become more complex than using an IC, and in fact, cross validation can be used for model validation and other applications beyond just picking a best model. Cross validation is built on the basic concept of bootstrapping. In other words, cross validation involves splitting a data set into a training data set in a test data set. The training data set fits the model and estimates the coefficients and then the test data set is used to evaluate how the model performs. As you can perhaps tell from this simple description cross validation tends to be more for model or system prediction and sometimes less for system understanding.
+
+
+Typically we hear about k-fold cross validation, where k is equal to the number of groups the data are split into. The smallest k-fold cross validation we can have is 2-fold validation, where half the data are used for training and half are used for testing. The largest k we can have is equal to n, or the sample size of the data. When k=n, it is often referred to as leave one out cross validation or jackknife cross validation. Despite these two extremes many types of cross validation happen with k-folds between 3 and 5 (citation).
+
+### Comparison of AIC and CV
+
+Let’s consider the Midway et al. (2013) example as a comparison between AIC and cross validation. In this study the researchers had eight different predictors available to predict a binary maturity status of a fish. After evaluating all subsets of models the AIC values tended to select for more complex models, or those models that tended to have greater numbers of predictor terms in them. However, when looking at the cross validation scores of the same models, it was noted that there was very little relationship between the AIC scores and the cross validation scores. Even though the top one or two models could be identified using AIC, models that were not competitive with AIC (and would have been excluded as candidates for the best model) still performed very well using cross validation methods.
+
+### Which model selection should I use?
+
+Ultimately when it comes to the model selection routine you should use there is no one size fits all. It remains important to invest your efforts in implicit model selection. 
+
+For example, there is no reason to continue to evaluate predictors if you don’t have mechanisms or hypotheses as to why they should even be considered in the first place.
+
+After implicit model selection you can consider whether you’re interested in understanding and perhaps want something like AIC. Or, whether you are more heavily invested in prediction, in which case cross validation may be a better tool.
+
+
+## Chapter 11 Visualizing Data
+
+https://www.cell.com/patterns/fulltext/S2666-3899(20)30189-6
+
+Presented here are ten principles that serve as guidance for authors who seek to improve their visual message. Some principles are less technical, such as determining the message before starting the visual, while other principles are more technical, such as how different color combinations imply different information.
+
+### Introduction
+
+Graph, plot, and chart often refer to the display of data, data summaries, and models, while image suggests a picture. Figure is a general term but is commonly used to refer to visual elements, such as plots, in a scientific work. A visual, or data visualization, is a newer and ostensibly more inclusive term to describe everything from figures to infographics.
+
+Wilkinson breaks down the notion of a graphic into its constituent parts—e.g., the data, scales, coordinates, geometries, aesthetics
+
+### The Ten Principles
+
+#### Principle #1 Diagram First
+
+Before you make a visual, prioritize the information you want to share, envision it, and design it. 
+
+- Focus on the information and message first, before you engage with software that in some way starts to limit or bias your visual tools.
+
+- Think about the core information that needs to be conveyed and what about that information is going to make your point(s). Is your visual objective to show a comparison? A ranking? A composition? 
+
+  - It can be a good idea to save figures you come across in scientific literature that you identify as particularly effective. These are not just inspiration and evidence of what is possible, but will help you develop an eye for detail and technical skills that can be applied to your own figures.
+
+####  Principle #2 Use the Right Software
+
+Effective visuals typically require good command of one or more software
+
+- Figure making is a method like anything else, and in order to do it, new methodologies may need to be learned.
+
+
+####  Principle #3 Use an Effective Geometry and Show Data
+
+Geometries are the shapes and features that are often synonymous with a type of figure; for example, the bar geometry creates a bar plot. While geometries might be the defining visual element of a figure, it can be tempting to jump directly from a dataset to pairing it with one of a small number of well-known geometries. 
+
+- Geometries are representations of the data in different forms, and often there may be more than one geometry to consider.
+
+- Underlying all your decisions about geometries should be the `data-ink ratio`, which is the ratio of ink used on data compared with overall ink used in a figure. High data-ink ratios are the best, and you might be surprised to find how much non-data-ink you use and how much of that can be removed.
+
+  - Most geometries fall into categories: amounts (or comparisons), compositions (or proportions), distributions, or relationships
+
+- Amounts or comparisons are often displayed with a bar plot, Cleveland dot plots and even heatmaps 
+
+  - although bar plots are noted for their very low data density (i.e., low data-ink ratio)
+
+- Compositions or proportions may take a wide range of geometries.
+
+  - Although there may be some applications for a pie chart, stacked or clustered bar plots (Figure 1A), stacked density plots, mosaic plots, and treemaps offer alternatives.
+
+- Geometries for distributions are an often underused class of visuals that demonstrate high data density. The most common geometry for distributional information is the box plot, which shows five types of information in one object. 
+
+  - Although more common in exploratory analyses than in final reports, the histogram is another robust geometry that can reveal information about data. Violin plots and density plots are other common distributional geometries, although many less-common options exist.
+
+- Relationships are the final category of visuals covered here, and they are often the workhorse of geometries because they include the popular scatterplot (Figures 1C and 1D) and other presentations of x- and y-coordinate data.
+
+  - The basic scatterplot remains very effective, and layering information by modifying point symbols, size, and color are good ways to highlight additional messages without taking away from the scatterplot. 
+
+Finally, it is almost always recommended to show the data
+
+####  Principle #4 Colors Always Mean Something
+
+The use of color in visualization can be incredibly powerful, and there is rarely a reason not to use color. 
+
+In a large study of what makes visualizations memorable, colorful visualizations were reported as having a higher memorability score, and that seven or more colors are best.
+
+Color represents information, whether in a direct and obvious way, or in an indirect and subtle way. A direct example of using color may be in maps where water is blue and land is green or brown. However, the vast majority of (non-mapping) visualizations use color in one of three schemes: `sequential, diverging, or qualitative`. 
+
+- Sequential color schemes are those that range from light to dark typically in one or two (related) hues and are often applied to convey increasing values for increasing darkness
+
+- Diverging color schemes are those that have two sequential schemes that represent two extremes, often with a white or neutral color in the middle
+
+  - A classic example of a diverging color scheme is the red to blue hues applied to jurisdictions in order to show voting preference in a two-party political system.
+
+- Qualitative color schemes are found when the intensity of the color is not of primary importance, but rather the objective is to use different and otherwise unrelated colors to convey qualitative group differences 
+
+First, it is always recommended to design color figures that work effectively in both color and black-and-white formats 
+
+- In other words, whenever possible, use color that can be converted to an effective grayscale such that no information is lost in the conversion. Along with this approach, colors can be combined with symbols, line types, and other design elements to share the same information that the color was sharing. It is also good practice to use color schemes that are effective for colorblind readers 
+
+
+####  Principle #5 Include Uncertainty
+
+Not only is uncertainty an inherent part of understanding most systems, failure to include uncertainty in a visual can be misleading. There exist two primary challenges with including uncertainty in visuals: failure to include uncertainty and misrepresentation (or misinterpretation) of uncertainty.
+
+Uncertainty is often not included in figures and, therefore, part of the statistical message is left out—possibly calling into question other parts of the statistical message, such as inference on the mean. Including uncertainty is typically easy in most software programs, and can take the form of common geometries such as error bars and shaded intervals (polygons), among other features
+
+Representing uncertainty is often a challenge. Standard deviation, standard error, confidence intervals, and credible intervals are all common metrics of uncertainty, but each represents a different measure.
+
+- Standard deviation is based on the spread of the data and therefore shares information about the entire population, including the range in which we might expect new values. On the other hand, standard error is a measure of the uncertainty in the mean (or some other estimate) and is strongly influenced by sample size—namely, standard error decreases with increasing sample size. Confidence intervals are primarily for displaying the reliability of a measurement. Credible intervals, almost exclusively associated with Bayesian methods, are typically built off distributions and have probabilistic interpretations.
+
+
+####  Principle #6 Panel, when Possible (Small Multiples)
+
+A particularly effective visual approach is to repeat a figure to highlight differences. This approach is often called small multiples,and the technique may be referred to as paneling or faceting
+
+The strategy behind small multiples is that because many of the design elements are the same—for example, the axes, axes scales, and geometry are often the same—the differences in the data are easier to show.
+
+ each panel represents a change in one variable, which is commonly a time step, a group, or some other factor. The objective of small multiples is to make the data inevitably comparable, and effective small multiples always accomplish these comparisons.
+
+####  Principle #7 Data and Models Are Different Things
+
+Plotted information typically takes the form of raw data (e.g., scatterplot), summarized data (e.g., box plot), or an inferential statistic (e.g., fitted regression line)
+
+Raw data and summarized data are often relatively straightforward; however, a plotted model may require more explanation for a reader to be able to fully reproduce the work.
+
+any visual of a model should be explained in the figure caption or referenced elsewhere in the document so that a reader can find the complete details on what the model visual is representing.
+
+#### Principle #8 Simple Visuals, Detailed Captions
+
+As important as it is to use high data-ink ratios, it is equally important to have detailed captions that fully explain everything in the figure.
+
+Captions should be standalone, which means that if the figure and caption were looked at independent from the rest of the study, the major point(s) could still be understood. Obviously not all figures can be completely standalone, as some statistical models and other procedures require more than a caption as explanation. 
+
+Captions should explain any geometries used; for instance, even in a simple scatterplot it should be stated that the black dots represent the data 
+
+#### Principle #9 Consider an Infographic
+
+It is unclear where a figure ends and an infographic begins; however, it is fair to say that figures tend to be focused on representing data and models, whereas infographics typically incorporate text, images, and other diagrammatic elements.
+
+Even if infographics are not adopted in most cases, technical visuals often still benefit from some text or other annotations
+
+
+#### Principle #10 Get an Opinion
+
+Although there may be principles and theories about effective data visualization, the reality is that the most effective visuals are the ones with which readers connect
+
+figure authors are encouraged to seek external reviews of their figures.
+
+### What About Tables?
+
+tables can be a powerful and effective way to show data. Like other visuals, tables are a type of hybrid visual—they typically only include alphanumeric information and no geometries (or other visual elements), so they are not classically a visual.
+
+tables are also not text in the same way a paragraph or description is text. Rather, tables are often summarized values or information, and are effective if the goal is to reference exact numbers.
+
+Because tables are best suited for looking up specific information while graphs are better for perceiving trends and making comparisons and predictions, it is recommended that visuals are used before tables.
 
 
 

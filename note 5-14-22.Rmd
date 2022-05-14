@@ -9,6 +9,25 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+## line break
+
+<br></br> means The Line Break element
+
+https://developer.mozilla.org/en-US/docs/Web/HTML/Element/br
+
+## favicon
+
+https://favicon.io/favicon-generator/
+
+https://fonts.google.com/
+
+## bookdown archives 
+
+https://bookdown.org/home/archive/
+
+## knitr
+
+https://yihui.org/knitr/
 
 
 
@@ -21,3 +40,46 @@ knitr::opts_chunk$set(echo = TRUE)
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## end

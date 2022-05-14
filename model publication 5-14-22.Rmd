@@ -1,0 +1,26 @@
+---
+title: "modeling publication notes 5-14-22"
+author: "James Lin"
+date: "5/14/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Model Selection
+
+
+All of this hearkens back to Chamberlain’s idea of multiple working hypotheses. `By developing multiple working hypotheses it is harder to fall in love with a single hypothesis that we develop. Similarly by developing multiple models it becomes harder to fall in love with one model. And from those multiple models, model selection has become the routine that allows us to identify that best model.`
+
+### Implicit and explicit model selection
+
+implicit and explicit model selection
+
+`Explicit model selection is the model selection that is most commonly referred to when modelers or statisticians are talking about model selection`; for example, AIC (Akaike Information Criterion) and cross validation methods with which you may be familiar. Implicit model selection, however, takes place often before the explicit model selection yet can be just as important. Implicit model selection refers to the things you do and decide on when it comes to designing a model. For example `implicit model selection includes what inputs and predictors make sense to even consider including` (based on a mechanism or hypothesis). Or, perhaps you’ve evaluated some predictors and looked at their effects, which may not be a great way to determine whether to include a predictor but still may produce some information of use
+
+
+Which model selection should I use?
+
+After implicit model selection you can consider whether you’re interested in understanding and perhaps want something like AIC. Or, whether you are more heavily invested in prediction, in which case cross validation may be a better tool.
