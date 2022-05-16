@@ -1588,14 +1588,14 @@ BUT Here is where things start to get interesting with maximum likelihood. There
 
 Except for the specific values, these look like the pattern we have seen before. I generated them by simply setting up data for each subject that had a different slope. For Subject 1 the scores had a very steep slope, whereas for Subject 4 the line was almost flat. In other words there was variance to the slopes. Had all of the slopes been equal (the lines parallel) the off-diagonal correlations would have been equal except for error, and the variance of the slopes would have been 0. But when the slopes were unequal their variance was greater than 0 and the times would be differentially correlated.
 
+## R Course
+
+https://www.youtube.com/watch?v=Kwfz_JJyexA&ab_channel=PagePiccinini
 
 
+https://pagepiccinini.com/r-course/
 
-
-
-
-
-
+https://github.com/pagepiccinini
 
 
 ## end
